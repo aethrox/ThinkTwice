@@ -1,6 +1,7 @@
 'use client';
 
 import MarkdownContent from '@/app/components/MarkdownContent';
+import { stripEvaluationMarkers } from '@/lib/verdict-utils';
 
 interface JudgeNotesCardProps {
   text: string;
@@ -33,7 +34,7 @@ export default function JudgeNotesCard({ text, isStreaming, decision }: JudgeNot
           <p className="text-xs text-zinc-500 italic">Judge is reviewing all responses…</p>
         )}
         {text && (
-          <MarkdownContent content={text} className="text-xs [&_p]:text-xs [&_p]:text-zinc-400 [&_strong]:text-zinc-300" />
+          <MarkdownContent content={stripEvaluationMarkers(text)} className="text-xs [&_p]:text-xs [&_p]:text-zinc-400 [&_strong]:text-zinc-300" />
         )}
       </div>
 
