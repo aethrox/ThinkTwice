@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import type { SavedDebate } from '@/types/debate';
+import { parseScorecard } from '@/lib/scorecard-parser';
+import { extractWinner } from '@/lib/verdict-utils';
 
 function formatDate(timestamp: number): string {
   const date = new Date(timestamp);
@@ -17,14 +19,6 @@ function formatDate(timestamp: number): string {
   if (diffHours < 24) return `${diffHours}h ago`;
   if (diffDays < 7) return `${diffDays}d ago`;
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-}
-
-function extractWinner(verdict: string): string | null {
-  const match = verdict.match(/\*\*Winner:\s*(.+?)\*\*/);
-  if (match) return match[1].trim();
-  const match2 = verdict.match(/Winner:\s*(.+?)[\n\r*]/);
-  if (match2) return match2[1].trim();
-  return null;
 }
 
 export default function HistoryPage() {
@@ -106,7 +100,7 @@ export default function HistoryPage() {
         {/* Debate list */}
         <div className="space-y-3">
           {debates.map((debate) => {
-            const winner = extractWinner(debate.verdict);
+            const winner = extractWinner(debate.verdict, parseScorecard(debate.verdict));
 
             return (
               <div

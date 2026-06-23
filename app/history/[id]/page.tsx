@@ -5,13 +5,8 @@ import { useRouter } from 'next/navigation';
 import MarkdownContent from '@/app/components/MarkdownContent';
 import VerdictScorecard from '@/app/components/VerdictScorecard';
 import { parseScorecard } from '@/lib/scorecard-parser';
+import { extractWinner } from '@/lib/verdict-utils';
 import type { SavedDebate } from '@/types/debate';
-
-function extractWinner(verdict: string): string | null {
-  const match = verdict.match(/\*\*Winner:\s*(.+?)\*\*/);
-  if (match) return match[1].trim();
-  return null;
-}
 
 export default function SavedDebatePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -62,7 +57,7 @@ export default function SavedDebatePage({ params }: { params: Promise<{ id: stri
   }
 
   const scorecard = parseScorecard(debate.verdict);
-  const winner = extractWinner(debate.verdict);
+  const winner = extractWinner(debate.verdict, scorecard);
 
   const optionColors = [
     { border: 'border-blue-500/30', bg: 'bg-blue-950/20', text: 'text-blue-400', badge: 'bg-blue-500' },
