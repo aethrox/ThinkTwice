@@ -54,6 +54,6 @@ export function stripEvaluationMarkers(text: string): string {
       return !/^SCORES:/i.test(cleaned);
     })
     .join('\n')
-    .replace(/^[\s>#*_-]*CONTINUE:[ \t]*/im, '')
+    .replace(/^[\s>#*_-]*CONTINUE:[*_]*[ \t]*/im, '')
     .trim();
 }
