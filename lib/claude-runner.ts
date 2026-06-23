@@ -8,6 +8,32 @@ import { spawn } from 'child_process';
 const PROCESS_TIMEOUT_MS = 5 * 60 * 1000;
 
 /**
+ * Default number of agentic turns allowed per Claude subprocess.
+ * A turn is one model response; tool use (WebSearch/WebFetch) consumes turns.
+ * With only 3 turns, an advocate that searches the web can run out of turns
+ * before writing its actual argument — producing empty/planning-only output.
+ * 6 gives room to search, read results, and still write a substantive response.
+ */
+const DEFAULT_MAX_TURNS = 6;
+
+/**
+ * Maps the UI/model-selector aliases to concrete, current Claude model IDs.
+ * Pinning real IDs (instead of bare aliases like "sonnet") removes ambiguity
+ * about which model version actually runs. If a full model ID is passed in,
+ * it is forwarded unchanged so callers can override.
+ */
+const MODEL_ALIASES: Record<string, string> = {
+  opus: 'claude-opus-4-8',
+  sonnet: 'claude-sonnet-4-6',
+  haiku: 'claude-haiku-4-5',
+};
+
+export function resolveModel(model: string): string {
+  const key = model.trim().toLowerCase();
+  return MODEL_ALIASES[key] ?? model;
+}
+
+/**
  * Extract text content from a result event's result field.
  * Handles both string and object formats.
  */
@@ -43,7 +69,8 @@ export function runClaude(
   prompt: string,
   onChunk: (text: string) => void,
   signal?: AbortSignal,
-  model: string = 'sonnet'
+  model: string = 'sonnet',
+  maxTurns: number = DEFAULT_MAX_TURNS
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) {
@@ -61,8 +88,8 @@ export function runClaude(
         '--output-format', 'stream-json',
         '--verbose',
         '--allowedTools', 'WebSearch,WebFetch',
-        '--model', model,
-        '--max-turns', '3',
+        '--model', resolveModel(model),
+        '--max-turns', String(maxTurns),
       ],
       { env, stdio: ['ignore', 'pipe', 'pipe'] }
     );

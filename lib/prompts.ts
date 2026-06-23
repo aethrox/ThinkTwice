@@ -4,7 +4,7 @@ import { DebateRound, ExpertPerspective } from '@/types/debate';
 
 function languageInstruction(language: string): string {
   if (!language || language.toLowerCase() === 'english') return '';
-  return `\n\n**IMPORTANT: You MUST write your ENTIRE response in ${language}. All text, analysis, and formatting must be in ${language}.**`;
+  return `\n\nWrite your entire response in ${language} — all text, analysis, and formatting in ${language}.`;
 }
 
 // ── Helper: truncate a response to a max word count ─────────────────────────────
@@ -150,7 +150,7 @@ This is the first round of the continuation debate. Your task:
 3. Force the advocates to engage with the user's challenge — don't let them rehash old arguments.
 4. The question should be specific and focused on the user's unaddressed concern.
 
-You MUST format your response EXACTLY as follows (the line must start with "QUESTION:"):
+Format your response exactly as follows — the line must start with "QUESTION:":
 
 QUESTION: [Your focused question addressing the user's challenge]
 
@@ -172,7 +172,7 @@ Your task:
 3. The question should be specific, focused, and answerable with research and evidence.
 4. Frame the question so that all advocates must address the same point, enabling direct comparison.
 
-You MUST format your response EXACTLY as follows (the line must start with "QUESTION:"):
+Format your response exactly as follows — the line must start with "QUESTION:":
 
 QUESTION: [Your focused question here]
 
@@ -196,7 +196,7 @@ Your task:
 3. Ask a NEW, focused follow-up question that probes a different angle or digs deeper into a weak point.
 4. You may direct a question at a specific advocate if one made a claim that needs scrutiny (e.g., "Advocate for X, respond to Advocate for Y's claim that...").
 
-You MUST format your response EXACTLY as follows (the line must start with "QUESTION:"):
+Format your response exactly as follows — the line must start with "QUESTION:":
 
 QUESTION: [Your focused follow-up question here]
 
@@ -300,7 +300,7 @@ This was the FINAL round (Round ${currentRound} of ${maxRounds}). You MUST now d
 
 Analyze ALL arguments and evidence across ALL rounds, then deliver your final verdict. Even if the debate is close, you MUST pick a winner. A tie is NOT allowed — weigh the evidence and make a decision.
 
-You MUST format your response EXACTLY as follows. The VERY FIRST LINE of your response must be "VERDICT:" — no exceptions:
+Format your response exactly as follows. The first line of your response must be "VERDICT:":
 
 VERDICT:
 
@@ -364,7 +364,7 @@ Consider:
 - Is one side failing to adequately counter the other's strongest points?
 - Would another round of questioning meaningfully change the outcome?${considerMissingContext}
 
-You MUST respond with EXACTLY ONE of the following two formats:
+Respond with exactly one of the following two formats:
 
 **If you want to continue the debate** (the line must start with "CONTINUE:"):
 CONTINUE: [Brief 1-sentence explanation of why more questioning is needed]

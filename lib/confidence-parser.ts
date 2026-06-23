@@ -6,14 +6,14 @@ export function parseConfidenceScores(
   evaluationText: string,
   options: string[]
 ): Record<string, number> | null {
-  // Look for SCORES: line
+  // Look for the SCORES: line, tolerating leading markdown/emphasis (e.g. "**SCORES:**").
   const lines = evaluationText.split('\n');
   let scoresLine = '';
 
   for (const line of lines) {
-    const trimmed = line.trim();
-    if (trimmed.startsWith('SCORES:')) {
-      scoresLine = trimmed.slice('SCORES:'.length).trim();
+    const trimmed = line.trim().replace(/^[>#*_\s-]+/, '');
+    if (/^SCORES:/i.test(trimmed)) {
+      scoresLine = trimmed.replace(/^SCORES:/i, '').trim();
       break;
     }
   }

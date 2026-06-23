@@ -14,6 +14,8 @@ export const debateStore = new Map<
     resolve: (() => void) | null;  // notifies waiting stream consumers
     userInputResolve: ((input: string) => void) | null;  // resolves user input promise
     waitingForUserInput: boolean;  // flag for input endpoint
+    abortController: AbortController;  // cancels in-flight claude subprocesses
+    abortTimer: ReturnType<typeof setTimeout> | null;  // deferred abort after client disconnect
   }
 >();
 
@@ -44,6 +46,8 @@ export async function POST(req: NextRequest) {
     resolve: null,
     userInputResolve: null,
     waitingForUserInput: false,
+    abortController: new AbortController(),
+    abortTimer: null,
   });
 
   // Run debate asynchronously — don't await, just kick it off
@@ -119,13 +123,15 @@ async function startDebateJob(
     previousRounds = continuationStore.get(continueFromDebateId) ?? null;
   }
 
+  const signal = debateStore.get(id)?.abortController.signal;
+
   try {
     await runDebate(
       options,
       context,
       emit,
       autoMode ? null : waitForUserInput,
-      undefined,
+      signal,
       language,
       model,
       experts,
@@ -148,7 +154,13 @@ async function startDebateJob(
       entry.resolve?.();
       entry.resolve = null;
     }
-    // Clean up store after 30 minutes (extended to accommodate user input delays)
-    setTimeout(() => debateStore.delete(id), 30 * 60 * 1000);
+    // Clean up store after 30 minutes (extended to accommodate user input delays).
+    // Abort first as a safety net in case any subprocess is somehow still alive.
+    setTimeout(() => {
+      const e = debateStore.get(id);
+      if (e?.abortTimer) clearTimeout(e.abortTimer);
+      e?.abortController.abort();
+      debateStore.delete(id);
+    }, 30 * 60 * 1000);
   }
 }

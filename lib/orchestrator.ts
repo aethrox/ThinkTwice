@@ -43,15 +43,23 @@ const MIN_RESPONSE_LENGTH = 200;
  * Falls back to using the entire text as the question.
  */
 function parseJudgeQuestion(rawText: string): string {
-  const lines = rawText.trim().split('\n');
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (trimmed.startsWith('QUESTION:')) {
-      return trimmed.slice('QUESTION:'.length).trim();
-    }
+  const text = rawText.trim();
+
+  // Match the "QUESTION:" marker case-insensitively at a line start, tolerating
+  // leading markdown/emphasis the model may add (e.g. "**QUESTION:**", "> QUESTION:").
+  const match = text.match(/^[\s>#*_-]*QUESTION:\s*/im);
+  if (match) {
+    const after = text.slice(match.index! + match[0].length).trim();
+    // Take the first non-empty line as the question, stripping bold markers.
+    const firstLine = after
+      .split('\n')
+      .map((l) => l.trim())
+      .find((l) => l.length > 0);
+    if (firstLine) return firstLine.replace(/\*\*/g, '').trim();
   }
-  // Fallback: treat the entire output as the question
-  return rawText.trim();
+
+  // Fallback: strip any stray marker/emphasis and treat the whole output as the question.
+  return text.replace(/QUESTION:/i, '').replace(/\*\*/g, '').trim();
 }
 
 interface JudgeEvaluationResult {
@@ -69,43 +77,38 @@ interface JudgeEvaluationResult {
 function parseJudgeEvaluation(rawText: string): JudgeEvaluationResult {
   const trimmed = rawText.trim();
 
-  // Check for VERDICT first (can be multi-line)
-  const verdictIndex = trimmed.indexOf('VERDICT:');
-  if (verdictIndex !== -1) {
-    const verdictContent = trimmed.slice(verdictIndex + 'VERDICT:'.length).trim();
+  // Detect markers at a line start, tolerating leading markdown/emphasis. Using a
+  // line-start match (instead of indexOf anywhere) avoids misclassifying a CONTINUE
+  // explanation that merely mentions the word "VERDICT:" as an actual verdict.
+  const verdictMatch = trimmed.match(/^[\s>#*_-]*VERDICT:\s*/im);
+  if (verdictMatch) {
+    const verdictContent = trimmed.slice(verdictMatch.index! + verdictMatch[0].length).trim();
     return { decision: 'verdict', content: verdictContent };
   }
 
-  // Check for CONTINUE and CLARIFICATION
-  const lines = trimmed.split('\n');
-  let continueContent = '';
+  // Optional CLARIFICATION line — only honour a real question (not the placeholder).
   let clarification: string | undefined;
-
-  for (const line of lines) {
-    const l = line.trim();
-    if (l.startsWith('CONTINUE:')) {
-      continueContent = l.slice('CONTINUE:'.length).trim();
-    }
-    if (l.startsWith('CLARIFICATION:')) {
-      const text = l.slice('CLARIFICATION:'.length).trim();
-      // Only set if the judge actually wrote a question (not just the placeholder)
-      if (text && !text.startsWith('[')) {
-        clarification = text;
-      }
+  const clarMatch = trimmed.match(/^[\s>#*_-]*CLARIFICATION:[ \t]*(.*)$/im);
+  if (clarMatch) {
+    const text = clarMatch[1].trim();
+    if (text && !text.startsWith('[')) {
+      clarification = text;
     }
   }
 
-  if (continueContent) {
-    return { decision: 'continue', content: continueContent, clarification };
+  // CONTINUE marker (line start, tolerant of emphasis).
+  const continueMatch = trimmed.match(/^[\s>#*_-]*CONTINUE:[ \t]*(.*)$/im);
+  if (continueMatch) {
+    return { decision: 'continue', content: continueMatch[1].trim(), clarification };
   }
 
-  // Fallback heuristic: if text contains "Winner:" it's probably a verdict
-  if (trimmed.includes('**Winner:') || trimmed.includes('Winner:')) {
+  // Fallback heuristic: a "Winner:" line strongly implies a verdict.
+  if (/\*{0,2}Winner:/i.test(trimmed)) {
     return { decision: 'verdict', content: trimmed };
   }
 
-  // Default: treat as continue to avoid premature termination
-  return { decision: 'continue', content: trimmed };
+  // Default: treat as continue to avoid premature termination.
+  return { decision: 'continue', content: trimmed, clarification };
 }
 
 // ── Single Advocate Runner (with retry) ──────────────────────────────────────
@@ -175,7 +178,7 @@ async function runAdvocateRound(
 ${context ? `Context: ${context}\n` : ''}
 The judge asks: "${judgeQuestion}"
 
-IMPORTANT: You MUST provide a complete, substantive response with real arguments and evidence. Do NOT just say you will research — provide your actual analysis and arguments NOW.
+Provide a complete, substantive response with real arguments and evidence now — don't just describe what you will research, give your actual analysis and arguments.
 
 Research and answer this question with strong evidence favoring "${option}". Use WebSearch to find current data. Keep your response focused and under 600 words.${languageInstruction(language)}`;
 
@@ -209,7 +212,7 @@ Research and answer this question with strong evidence favoring "${option}". Use
 
 function languageInstruction(language: string): string {
   if (!language || language.toLowerCase() === 'english') return '';
-  return `\n\n**IMPORTANT: You MUST write your ENTIRE response in ${language}.**`;
+  return `\n\nWrite your entire response in ${language}.`;
 }
 
 // ── Main Orchestration Loop ──────────────────────────────────────────────────
@@ -410,9 +413,9 @@ ${augmentedContext ? `User context: ${augmentedContext}\n` : ''}
 Here is a summary of the debate:
 ${completedRounds.map((r) => `Round ${r.roundNumber}: "${r.judgeQuestion}" — ${r.responses.map((resp) => `${resp.option} argued: ${resp.response.slice(0, 200)}...`).join('; ')}`).join('\n')}
 
-You MUST NOW deliver your final verdict. Pick a winner. A tie is NOT allowed.
+Now deliver your final verdict. Pick a clear winner — a tie is not allowed.
 
-The VERY FIRST WORD of your response must be "VERDICT:" followed by your analysis.
+Begin your response with "VERDICT:" followed by your analysis.
 
 VERDICT:
 
@@ -426,16 +429,27 @@ VERDICT:
 
 **Confidence level:** [High/Medium/Low] — [explanation]
 
-SCORES: ${options.map((o) => `[${o}]=X/10`).join(', ')}${languageInstruction(language)}`;
+**Scores (1-10):**
+| Option | Evidence | Relevance | Practicality | Overall |
+| --- | --- | --- | --- | --- |
+${options.map((o) => `| ${o} | X | X | X | X |`).join('\n')}
+
+Replace each X with a score from 1-10.
+
+SCORES: ${options.map((o) => `[${o}]=X/10`).join(', ')}
+
+Replace each X with the Overall score for that option.${languageInstruction(language)}`;
 
       emit({ type: 'phase_start', phase: 'verdict' });
 
+      // Accumulate the forced verdict without streaming raw chunks — otherwise
+      // the "VERDICT:" prefix leaks into the UI. We strip it and emit the
+      // cleaned verdict as a single chunk, matching the normal verdict path.
       let verdictText = '';
       const forcedResult = await runClaude(
         forcedVerdictPrompt,
         (chunk) => {
           verdictText += chunk;
-          emit({ type: 'verdict_chunk', chunk });
         },
         signal,
         model
@@ -448,6 +462,7 @@ SCORES: ${options.map((o) => `[${o}]=X/10`).join(', ')}${languageInstruction(lan
         finalVerdict = finalVerdict.slice(vIdx + 'VERDICT:'.length).trim();
       }
 
+      emit({ type: 'verdict_chunk', chunk: finalVerdict });
       emit({ type: 'verdict_done' });
       return;
     }

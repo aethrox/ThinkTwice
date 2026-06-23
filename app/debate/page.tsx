@@ -128,6 +128,52 @@ function DebatePageInner() {
     }
   }, [done, verdict, saveDebate]);
 
+  // ── Seed prior rounds for a continuation debate ──
+  // Runs once on mount, before the SSE stream starts appending new rounds, so
+  // the continuation's saved record includes the full debate history (not just
+  // the offset-numbered tail rounds the backend produces).
+  const seededRef = useRef(false);
+  useEffect(() => {
+    if (!id || seededRef.current) return;
+    seededRef.current = true;
+
+    let stored: string | null = null;
+    try {
+      stored = sessionStorage.getItem(`continuation:${id}`);
+      if (stored) sessionStorage.removeItem(`continuation:${id}`);
+    } catch {
+      return;
+    }
+    if (!stored) return;
+
+    let priorRounds: DebateRound[];
+    try {
+      priorRounds = JSON.parse(stored) as DebateRound[];
+    } catch {
+      return;
+    }
+    if (!Array.isArray(priorRounds) || priorRounds.length === 0) return;
+
+    const seeded: RoundState[] = priorRounds.map((r) => ({
+      roundNumber: r.roundNumber,
+      judgeQuestion: r.judgeQuestion,
+      judgeQuestionDone: true,
+      judgeQuestionStreaming: false,
+      responses: options.map((_, i) => r.responses[i]?.response ?? ''),
+      responseDone: options.map(() => true),
+      evaluationText: '',
+      evaluationStreaming: false,
+      evaluationDecision: 'continue',
+      scores: null,
+      userClarificationQuestion: r.userClarification?.question,
+      userClarificationAnswer: r.userClarification?.answer,
+    }));
+
+    setRounds(seeded);
+    setCurrentRound(priorRounds[priorRounds.length - 1].roundNumber);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
   useEffect(() => {
     if (!id) return;
 
@@ -409,6 +455,17 @@ function DebatePageInner() {
 
     if (!res.ok) throw new Error('Failed to continue debate');
     const { id: newId } = await res.json();
+
+    // Seed the continuation page with the prior rounds so its saved record
+    // contains the full debate arc. The backend numbers the new rounds with an
+    // offset (continuing after the previous rounds), so without this the new
+    // page would only ever show/save the tail rounds with gaps in numbering.
+    try {
+      sessionStorage.setItem(`continuation:${newId}`, JSON.stringify(debateRounds));
+    } catch {
+      // sessionStorage may be unavailable — continuation still works, just
+      // without the prior rounds shown on the new page.
+    }
 
     const newParams = new URLSearchParams({
       id: newId,

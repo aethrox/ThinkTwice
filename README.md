@@ -31,7 +31,7 @@ You describe your decision
 - **Mid-Debate Clarifications** — The judge can pause to ask you questions that sharpen the analysis
 - **Auto-Pilot Mode** — Skip all clarification questions and let the debate run fully autonomously
 - **13+ Languages** — English, Turkish, German, French, Spanish, Italian, Portuguese, Dutch, Japanese, Korean, Chinese, Arabic, Russian, Hindi
-- **Model Selection** — Choose between Claude Opus 4, Sonnet 4, or Haiku 3.5
+- **Model Selection** — Choose between Claude Opus 4.8, Sonnet 4.6, or Haiku 4.5
 - **Debate History** — All debates saved locally in your browser, replayable anytime
 
 ## Tech Stack
@@ -100,6 +100,11 @@ npm start
 │  └───────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────┘
 ```
+
+## Notes & Limitations
+
+- **Runs as a single process.** Active debates are tracked in an in-memory store (`debateStore` / `continuationStore`), and each debate spawns a local `claude` CLI subprocess. This means the app is designed to run as a single Node instance (local or a single long-lived server) — it is **not** suited to multi-instance or serverless deployments, where a debate started on one instance won't be visible to another and the `claude` binary may be absent. In-flight debates are also lost on restart.
+- **Models are pinned** to current Claude versions: `opus → claude-opus-4-8`, `sonnet → claude-sonnet-4-6`, `haiku → claude-haiku-4-5` (see `lib/claude-runner.ts`).
 
 ## License
 

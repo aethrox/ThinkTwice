@@ -3,6 +3,14 @@ import { debateStore } from '../route';
 
 export const dynamic = 'force-dynamic';
 
+/**
+ * Grace window before a disconnected client's debate is aborted. EventSource
+ * auto-reconnects on transient network blips, which also triggers the stream's
+ * cancel(). Deferring the abort lets a genuine reconnect cancel it, so only a
+ * truly abandoned debate gets killed.
+ */
+const STREAM_ABORT_GRACE_MS = 10 * 1000;
+
 export async function GET(req: NextRequest) {
   const id = req.nextUrl.searchParams.get('id');
   if (!id) {
@@ -27,6 +35,12 @@ export async function GET(req: NextRequest) {
         return;
       }
 
+      // A consumer (re)connected — cancel any pending abort from a prior disconnect.
+      if (entry.abortTimer) {
+        clearTimeout(entry.abortTimer);
+        entry.abortTimer = null;
+      }
+
       let cursor = 0;
 
       while (true) {
@@ -48,6 +62,19 @@ export async function GET(req: NextRequest) {
           entry.resolve = resolve;
         });
       }
+    },
+    cancel() {
+      // Client disconnected. Don't abort immediately — EventSource reconnects on
+      // transient blips and fires cancel() too. Defer the abort; if a new consumer
+      // connects within the grace window, start() clears this timer. Only a truly
+      // abandoned debate is aborted, killing its in-flight claude subprocesses.
+      const entry = debateStore.get(id);
+      if (!entry || entry.done) return;
+      if (entry.abortTimer) clearTimeout(entry.abortTimer);
+      entry.abortTimer = setTimeout(() => {
+        entry.abortController.abort();
+        entry.abortTimer = null;
+      }, STREAM_ABORT_GRACE_MS);
     },
   });
 
