@@ -413,6 +413,7 @@ export default function Home() {
                 onChange={(e) => setModel(e.target.value)}
                 className="w-full h-10 rounded-xl bg-zinc-800 border border-zinc-700 px-3 text-sm text-white focus:outline-none focus:border-zinc-500 transition appearance-none cursor-pointer"
               >
+                <option value="fable" disabled>Fable 5 (Newest &mdash; currently unavailable)</option>
                 <option value="opus">Opus 4.8 (Best quality, slower)</option>
                 <option value="sonnet">Sonnet 4.6 (Fast &amp; capable)</option>
                 <option value="haiku">Haiku 4.5 (Fastest, lighter)</option>
